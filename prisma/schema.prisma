@@ -1,0 +1,343 @@
+generator client {
+  provider = "prisma-client-js"
+}
+datasource db {
+  provider = "postgresql"
+}
+enum Role {
+  STUDENT
+  TEACHER
+  ADMIN
+}
+enum AttendanceStatus {
+  PRESENT
+  ABSENT
+  LATE
+  EXCUSED
+}
+enum ExamType {
+  TYT
+  AYT
+}
+enum Audience {
+  ALL
+  STUDENTS
+  TEACHERS
+  CLASSES
+}
+model User {
+  id String @id @default(cuid())
+  firstName String
+  lastName String
+  email String @unique
+  emailVerified DateTime?
+  passwordHash String
+  role Role @default(STUDENT)
+  active Boolean @default(true)
+  tcEncrypted String?
+  tcIndex String? @unique
+  tcLastTwo String?
+  privacyAcceptedAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  student StudentProfile?
+  teacher TeacherProfile?
+  sessions Session[]
+  photo ProfilePhoto?
+  verificationTokens EmailVerificationToken[]
+  resetTokens PasswordResetToken[]
+  assignments Assignment[]
+  announcements Announcement[]
+  attendanceTaken Attendance[] @relation("AttendanceActor")
+  auditLogs AuditLog[]
+  @@index([role,active,createdAt])
+}
+model StudentProfile {
+  id String @id @default(cuid())
+  userId String @unique
+  number Int @unique @default(autoincrement())
+  user User @relation(fields:[userId],references:[id],onDelete:Cascade)
+  enrollments ClassEnrollment[]
+  examResults ExamResult[]
+  assignmentStatuses AssignmentStudentStatus[]
+  attendance Attendance[]
+}
+model TeacherProfile {
+  id String @id @default(cuid())
+  userId String @unique
+  user User @relation(fields:[userId],references:[id],onDelete:Cascade)
+  assignments TeacherClassAssignment[]
+  schedules LessonSchedule[]
+}
+model Class {
+  id String @id @default(cuid())
+  name String @unique
+  description String @default("")
+  active Boolean @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  enrollments ClassEnrollment[]
+  teachers TeacherClassAssignment[]
+  schedules LessonSchedule[]
+  exams ExamClassAssignment[]
+  assignments Assignment[]
+  announcementTargets AnnouncementTarget[]
+}
+model ClassEnrollment {
+  id String @id @default(cuid())
+  studentId String
+  classId String
+  active Boolean @default(true)
+  enrolledAt DateTime @default(now())
+  endedAt DateTime?
+  student StudentProfile @relation(fields:[studentId],references:[id],onDelete:Cascade)
+  class Class @relation(fields:[classId],references:[id],onDelete:Restrict)
+  @@index([classId,active])
+  @@index([studentId,active])
+}
+model Subject {
+  id String @id @default(cuid())
+  name String @unique
+  teachers TeacherClassAssignment[]
+  schedules LessonSchedule[]
+  templates ExamTemplateSubject[]
+  assignments Assignment[]
+}
+model TeacherClassAssignment {
+  id String @id @default(cuid())
+  teacherId String
+  classId String
+  subjectId String
+  teacher TeacherProfile @relation(fields:[teacherId],references:[id],onDelete:Cascade)
+  class Class @relation(fields:[classId],references:[id],onDelete:Cascade)
+  subject Subject @relation(fields:[subjectId],references:[id],onDelete:Restrict)
+  @@unique([teacherId,classId,subjectId])
+  @@index([classId])
+}
+model Classroom {
+  id String @id @default(cuid())
+  name String @unique
+  schedules LessonSchedule[]
+}
+model LessonSchedule {
+  id String @id @default(cuid())
+  classId String
+  teacherId String
+  subjectId String
+  classroomId String
+  day Int
+  startMinute Int
+  endMinute Int
+  active Boolean @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  class Class @relation(fields:[classId],references:[id],onDelete:Restrict)
+  teacher TeacherProfile @relation(fields:[teacherId],references:[id],onDelete:Restrict)
+  subject Subject @relation(fields:[subjectId],references:[id],onDelete:Restrict)
+  classroom Classroom @relation(fields:[classroomId],references:[id],onDelete:Restrict)
+  sessions LessonSession[]
+  @@index([classId,day])
+  @@index([teacherId,day])
+}
+model LessonSession {
+  id String @id @default(cuid())
+  scheduleId String
+  date DateTime @db.Date
+  schedule LessonSchedule @relation(fields:[scheduleId],references:[id],onDelete:Restrict)
+  attendance Attendance[]
+  @@unique([scheduleId,date])
+}
+model ExamTemplate {
+  id String @id @default(cuid())
+  name String @unique
+  type ExamType
+  createdAt DateTime @default(now())
+  subjects ExamTemplateSubject[]
+  exams Exam[]
+}
+model ExamTemplateSubject {
+  id String @id @default(cuid())
+  templateId String
+  subjectId String
+  questionCount Int
+  template ExamTemplate @relation(fields:[templateId],references:[id],onDelete:Cascade)
+  subject Subject @relation(fields:[subjectId],references:[id],onDelete:Restrict)
+  results ExamSubjectResult[]
+  @@unique([templateId,subjectId])
+}
+model Exam {
+  id String @id @default(cuid())
+  name String
+  templateId String
+  date DateTime @db.Date
+  description String @default("")
+  status String @default("DRAFT")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  template ExamTemplate @relation(fields:[templateId],references:[id],onDelete:Restrict)
+  classes ExamClassAssignment[]
+  results ExamResult[]
+  @@index([date])
+}
+model ExamClassAssignment {
+  id String @id @default(cuid())
+  examId String
+  classId String
+  exam Exam @relation(fields:[examId],references:[id],onDelete:Cascade)
+  class Class @relation(fields:[classId],references:[id],onDelete:Restrict)
+  @@unique([examId,classId])
+}
+model ExamResult {
+  id String @id @default(cuid())
+  examId String
+  studentId String
+  totalNet Decimal @db.Decimal(7,2)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  exam Exam @relation(fields:[examId],references:[id],onDelete:Restrict)
+  student StudentProfile @relation(fields:[studentId],references:[id],onDelete:Restrict)
+  subjects ExamSubjectResult[]
+  @@unique([examId,studentId])
+  @@index([studentId])
+}
+model ExamSubjectResult {
+  id String @id @default(cuid())
+  resultId String
+  templateSubjectId String
+  correct Int
+  wrong Int
+  blank Int
+  net Decimal @db.Decimal(7,2)
+  result ExamResult @relation(fields:[resultId],references:[id],onDelete:Cascade)
+  templateSubject ExamTemplateSubject @relation(fields:[templateSubjectId],references:[id],onDelete:Restrict)
+  @@unique([resultId,templateSubjectId])
+}
+model Assignment {
+  id String @id @default(cuid())
+  title String
+  description String @default("")
+  subjectId String
+  classId String
+  creatorId String
+  dueAt DateTime
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  subject Subject @relation(fields:[subjectId],references:[id],onDelete:Restrict)
+  class Class @relation(fields:[classId],references:[id],onDelete:Restrict)
+  creator User @relation(fields:[creatorId],references:[id],onDelete:Restrict)
+  statuses AssignmentStudentStatus[]
+  @@index([classId,dueAt])
+  @@index([creatorId])
+}
+model AssignmentStudentStatus {
+  id String @id @default(cuid())
+  assignmentId String
+  studentId String
+  completedAt DateTime?
+  assignment Assignment @relation(fields:[assignmentId],references:[id],onDelete:Cascade)
+  student StudentProfile @relation(fields:[studentId],references:[id],onDelete:Cascade)
+  @@unique([assignmentId,studentId])
+}
+model Attendance {
+  id String @id @default(cuid())
+  studentId String
+  sessionId String
+  status AttendanceStatus
+  takenById String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  student StudentProfile @relation(fields:[studentId],references:[id],onDelete:Restrict)
+  session LessonSession @relation(fields:[sessionId],references:[id],onDelete:Restrict)
+  takenBy User @relation("AttendanceActor",fields:[takenById],references:[id],onDelete:Restrict)
+  @@unique([studentId,sessionId])
+  @@index([sessionId])
+}
+model Announcement {
+  id String @id @default(cuid())
+  title String
+  content String
+  audience Audience
+  creatorId String
+  publishedAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  creator User @relation(fields:[creatorId],references:[id],onDelete:Restrict)
+  targets AnnouncementTarget[]
+  @@index([audience,publishedAt])
+}
+model AnnouncementTarget {
+  id String @id @default(cuid())
+  announcementId String
+  classId String
+  announcement Announcement @relation(fields:[announcementId],references:[id],onDelete:Cascade)
+  class Class @relation(fields:[classId],references:[id],onDelete:Cascade)
+  @@unique([announcementId,classId])
+}
+model ProfilePhoto {
+  id String @id @default(cuid())
+  userId String @unique
+  objectKey String @unique
+  contentType String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user User @relation(fields:[userId],references:[id],onDelete:Cascade)
+}
+model EmailVerificationToken {
+  id String @id @default(cuid())
+  userId String
+  tokenHash String @unique
+  targetEmail String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  user User @relation(fields:[userId],references:[id],onDelete:Cascade)
+  @@index([expiresAt])
+}
+model PasswordResetToken {
+  id String @id @default(cuid())
+  userId String
+  tokenHash String @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  user User @relation(fields:[userId],references:[id],onDelete:Cascade)
+  @@index([expiresAt])
+}
+model Session {
+  id String @id @default(cuid())
+  tokenHash String @unique
+  userId String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  user User @relation(fields:[userId],references:[id],onDelete:Cascade)
+  @@index([userId])
+  @@index([expiresAt])
+}
+model RateLimit {
+  key String @id
+  count Int @default(1)
+  expiresAt DateTime
+  @@index([expiresAt])
+}
+model AuditLog {
+  id String @id @default(cuid())
+  actorId String?
+  action String
+  entityId String?
+  createdAt DateTime @default(now())
+  actor User? @relation(fields:[actorId],references:[id],onDelete:SetNull)
+  @@index([createdAt])
+}
+model InstitutionSettings {
+  id String @id @default("main")
+  name String @default("Akademi")
+  email String @default("")
+  phone String @default("")
+  address String @default("")
+  academicYear String @default("2026–2027")
+  timezone String @default("Europe/Istanbul")
+  logoKey String?
+  updatedAt DateTime @updatedAt
+}
+model StorageGarbage {
+  id String @id @default(cuid())
+  objectKey String @unique
+  createdAt DateTime @default(now())
+}

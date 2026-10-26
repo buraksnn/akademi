@@ -1,0 +1,14 @@
+import type { Serialized } from '@/lib/client';
+import type * as m from '@/server/services/management';
+import type * as a from '@/server/services/academic';
+import type { Actor } from '@/lib/auth/session';
+export type Meta = Serialized<Awaited<ReturnType<typeof m.metadata>>>;
+export type Users = Serialized<Awaited<ReturnType<typeof m.listUsers>>>;
+export type User = Serialized<Awaited<ReturnType<typeof m.userDetail>>>;
+export type Classes = Serialized<Awaited<ReturnType<typeof m.listClasses>>>;
+export type Schedules = Serialized<Awaited<ReturnType<typeof m.listSchedules>>>;
+export type Exams = Serialized<Awaited<ReturnType<typeof a.listExams>>>;
+export type Results = Serialized<Awaited<ReturnType<typeof a.listResults>>>;
+export type Assignments = Serialized<Awaited<ReturnType<typeof a.listAssignments>>>;
+export type Announcements = Serialized<Awaited<ReturnType<typeof a.listAnnouncements>>>;
+export type CurrentUser = Serialized<Actor>;
